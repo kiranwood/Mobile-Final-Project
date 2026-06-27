@@ -41,8 +41,6 @@ public class TriviaDataManager : MonoBehaviour
             Dictionary<string, string> response = ParseResponse(request.downloadHandler.text);
             _sessionToken = response["token"];
         }
-
-        yield return StartCoroutine(GetTriviaQuestions(10, "easy"));
     }
 
     // Parses the data into a dictionary
@@ -70,7 +68,6 @@ public class TriviaDataManager : MonoBehaviour
     /// Gets a set number of questions based on difficulty
     /// 
     /// </summary>
-    /// <returns></returns>
     public IEnumerator GetTriviaQuestions(int questionAmount, string difficulty)
     {
         Questions = new List<Question>();
