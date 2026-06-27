@@ -1,13 +1,37 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Random = UnityEngine.Random;
+using TMPro;
 
 public class GamePlayManager : MonoBehaviour
 {
     // Editable in Inspector
 
+    [SerializeField]
+    [Tooltip("Number of questions in Round 1 (Easy)")]
     public int round1QuestionCount = 5;
+    
+    [SerializeField]
+    [Tooltip("Number of questions in Round 2 (Medium)")]
     public int round2QuestionCount = 10;
+    
+    [SerializeField]
+    [Tooltip("Number of questions in Round 3 (Hard)")]
     public int round3QuestionCount = 20;
+    
+    // Timer
+    [SerializeField]
+    [Tooltip("Drag a TextMeshPro Text object here to show the countdown")]
+    public TMP_Text timerText; 
+    
+    [SerializeField]
+    [Tooltip("Time allowed per question in seconds")]
+    public float questionTimeLimit = 15f;
+    
+    private float timeRemaining;
+    public float GetTimeRemaining() => timeRemaining;
+    public bool isTimerRunning = false;
     
     // Game state 
     public List<TriviaQuestion> questions = new List<TriviaQuestion>();
@@ -46,6 +70,8 @@ public class GamePlayManager : MonoBehaviour
     public void LoadQuestions(List<TriviaQuestion> fetchedQuestions)
     {
         questions = fetchedQuestions;
+        timeRemaining = questionTimeLimit;
+        isTimerRunning = true;
         ShuffleQuestions();
         currentIndex = 0;
         isGameOver = false;
@@ -69,6 +95,9 @@ public class GamePlayManager : MonoBehaviour
         if (currentIndex >= questions.Count)
             AdvanceRound();
         
+        timeRemaining = questionTimeLimit;
+        isTimerRunning = true;
+        
         return correct;
     }
 
@@ -77,6 +106,7 @@ public class GamePlayManager : MonoBehaviour
         if (currentRound >= 3)
         {
             isGameOver = true;
+            isTimerRunning = false;
             Debug.Log($"Game Over! Final score: {score}");
         }
         else
@@ -114,6 +144,23 @@ public class GamePlayManager : MonoBehaviour
         }
     }
 
+    void Update()
+    {
+        if (!isTimerRunning || isGameOver)
+            return;
+        
+        timeRemaining -= Time.deltaTime;
+
+        if (timerText != null)
+            timerText.text = Mathf.CeilToInt(timeRemaining).ToString();
+        
+        if (timeRemaining <= 0.0f)
+        {
+            timeRemaining = 0.0f;
+            isTimerRunning = false;
+            SubmitAnswer(""); // empty = wrong answer
+        }
+    }
 }
 
 
