@@ -23,7 +23,6 @@ public class TriviaDataManager : MonoBehaviour
 
         // Gets sessions token
         StartCoroutine(GetSessionToken());
-        
     }
 
     IEnumerator GetSessionToken()
@@ -154,6 +153,4 @@ public class TriviaDataManager : MonoBehaviour
 
         return input;
     }
-
-
 }
