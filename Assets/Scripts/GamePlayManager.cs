@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using System.Collections;
 using Random = UnityEngine.Random;
 using TMPro;
 
@@ -9,7 +10,7 @@ public class GamePlayManager : MonoBehaviour
     // Editable in Inspector
 
     [SerializeField][Tooltip("Number of questions per level")]
-    public int questionsPerLevel = 100;
+    public int questionsPerLevel = 50;
 
     
     private string selectedDifficulty = "easy";
@@ -39,7 +40,7 @@ public class GamePlayManager : MonoBehaviour
 
     
     // Game state 
-    public List<TriviaQuestion> questions = new List<TriviaQuestion>();
+    public List<Question> questions = new List<Question>();
     private int currentIndex = 0;
     public int score = 0;
     public bool isGameOver = false;
@@ -50,19 +51,20 @@ public class GamePlayManager : MonoBehaviour
     public int CurrentRoundQuestionCount => questionsPerLevel;
     public bool isPlayerWon = false;
    
+    [SerializeField] private TriviaDataManager triviaDataManager;
+
     
     // TriviaManager call this with the questions for the current round
-    public void LoadQuestions(List<TriviaQuestion> fetchedQuestions)
+    public void LoadQuestions(List<Question> fetchedQuestions)
     {
         questions = fetchedQuestions;
         timeRemaining = questionTimeLimit;
         isTimerRunning = true;
-        ShuffleQuestions();
         currentIndex = 0;
         isGameOver = false;
     }
 
-    public TriviaQuestion GetCurrentQuestion()
+    public Question GetCurrentQuestion()
     {
         if(isGameOver || questions.Count == 0) return null;
         return questions[currentIndex];
@@ -72,8 +74,8 @@ public class GamePlayManager : MonoBehaviour
     {
         if (isGameOver) return false;
 
-        TriviaQuestion question = GetCurrentQuestion();
-        bool correct = (answer == question.correct_answer);
+        Question question = GetCurrentQuestion();
+        bool correct = (answer == question.AnswerOptions[question.CorrectAnswerID]);
 
         if (!correct)
         {
@@ -102,32 +104,11 @@ public class GamePlayManager : MonoBehaviour
     }
 
 
-    public List<string> GetShuffledAnswers()
+    public string[] GetShuffledAnswers()
     {
-        TriviaQuestion question = GetCurrentQuestion();
+        Question question = GetCurrentQuestion();
         if (question == null) return null;
-        
-        List<string> answers = new List<string>(question.incorrect_answers){question.correct_answer};
-        Shuffle(answers);
-        return answers;
-    }
-
-    private void ShuffleQuestions()
-    {
-        for (int i = questions.Count - 1; i > 0; i--)
-        {
-            int j = Random.Range(0, i + 1);
-            (questions[i], questions[j]) = (questions[j], questions[i]);
-        }
-    }
-    
-    private void Shuffle(List<string> list)
-    {
-        for (int i = list.Count - 1; i > 0; i--)
-        {
-            int j = Random.Range(0, i + 1);
-            (list[i], list[j]) = (list[j], list[i]);
-        }
+        return question.AnswerOptions;
     }
     
     // Difficulty
@@ -149,19 +130,29 @@ public class GamePlayManager : MonoBehaviour
     {
         if (loadingText != null) loadingText.gameObject.SetActive(true);
         if (errorText != null) errorText.gameObject.SetActive(false);
-
-        //timeoutCoroutine = StartCoroutine(FetchTimeout());
-        //onNeedQuestions?.Invoke();
+        StartCoroutine(FetchAndLoad());
     }
 
-    /*private IEnumerator FetchTimeout()
+    private IEnumerator FetchAndLoad()
+    {
+        timeoutCoroutine = StartCoroutine(FetchTimeout());
+        yield return StartCoroutine(triviaDataManager.GetTriviaQuestions(questionsPerLevel, selectedDifficulty));
+
+        if (triviaDataManager.Questions != null && triviaDataManager.Questions.Count > 0)
+            OnFetchSuccess(triviaDataManager.Questions);
+        else
+            OnFetchFailed();
+    }
+
+
+    private IEnumerator FetchTimeout()
     {
         yield return new WaitForSeconds(15f);
         OnFetchFailed();  // auto-called if no response in 15 sec
-    }*/
+    }
     
     // TriviaManager calls this when fetch succeeds
-    public void OnFetchSuccess(List<TriviaQuestion> fetchedQuestions)
+    public void OnFetchSuccess(List<Question> fetchedQuestions)
     {
         if (timeoutCoroutine != null) StopCoroutine(timeoutCoroutine);
         retryCount = 0;
@@ -213,16 +204,4 @@ public class GamePlayManager : MonoBehaviour
             SubmitAnswer(""); // empty = wrong answer
         }
     }
-}
-
-
-[System.Serializable]
-public class TriviaQuestion
-{
-    public string type;
-    public string difficulty;
-    public string category;
-    public string question;
-    public string correct_answer;
-    public List<string> incorrect_answers;
 }
