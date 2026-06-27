@@ -1,8 +1,8 @@
 using UnityEngine;
 
-public class TriviaManager : MonoBehaviour
+public class TriviaDataManager : MonoBehaviour
 {
-    public TriviaManager Instance {  get; private set; }
+    public TriviaDataManager Instance {  get; private set; }
 
     private void Awake()
     {
