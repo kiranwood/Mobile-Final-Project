@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using System.Collections;
-using Random = UnityEngine.Random;
 using TMPro;
 
 public class GamePlayManager : MonoBehaviour
@@ -12,7 +11,6 @@ public class GamePlayManager : MonoBehaviour
     [SerializeField][Tooltip("Number of questions per level")]
     public int questionsPerLevel = 50;
 
-    
     private string selectedDifficulty = "easy";
     
     // Timer
@@ -28,12 +26,6 @@ public class GamePlayManager : MonoBehaviour
     public float GetTimeRemaining() => timeRemaining;
     public bool isTimerRunning = false;
     
-    [SerializeField][Tooltip("Text to show while loading questions")]
-    public TMP_Text loadingText;
-
-    [SerializeField][Tooltip("Text to show when fetch fails")]
-    public TMP_Text errorText;
-
     private int retryCount = 0;
     private const int maxRetries = 3;
     private Coroutine timeoutCoroutine;
@@ -53,6 +45,19 @@ public class GamePlayManager : MonoBehaviour
    
     [SerializeField] private TriviaDataManager triviaDataManager;
 
+    [SerializeField] private GameObject hud;
+    
+    [SerializeField] private GameObject failedFetchPopUp;
+    
+    [SerializeField] private GameObject loadingScreen;
+    
+    [SerializeField] private TMP_Text questionText;
+    
+    [SerializeField] private UnityEngine.UI.Button[] answerButtons;
+    
+    public System.Action onAnswerCorrect;
+    public System.Action onAnswerWrong;
+    public System.Action<int> onScoreUpdated;
     
     // TriviaManager call this with the questions for the current round
     public void LoadQuestions(List<Question> fetchedQuestions)
@@ -82,22 +87,24 @@ public class GamePlayManager : MonoBehaviour
             isGameOver = true;
             isTimerRunning = false;
             isPlayerWon = false;
-            Debug.Log($"Wrong! Game Over. Score: {score}/{questionsPerLevel}");
             return false;
         }
 
         score++;
+        onAnswerCorrect?.Invoke();
+        onScoreUpdated?.Invoke(score);
         currentIndex++;
 
         if (currentIndex >= questions.Count)
         {
             isGameOver = true;
+            onAnswerWrong?.Invoke();
             isTimerRunning = false;
             isPlayerWon = true;
-            Debug.Log($"You beat the level! Score: {score}/{questionsPerLevel}");
             return true;
         }
 
+        DisplayQuestion(); 
         timeRemaining = questionTimeLimit;
         isTimerRunning = true;
         return true;
@@ -128,8 +135,8 @@ public class GamePlayManager : MonoBehaviour
 
     private void RequestQuestions()
     {
-        if (loadingText != null) loadingText.gameObject.SetActive(true);
-        if (errorText != null) errorText.gameObject.SetActive(false);
+        if (loadingScreen != null) loadingScreen.SetActive(true);
+        if (failedFetchPopUp != null) failedFetchPopUp.SetActive(false);
         StartCoroutine(FetchAndLoad());
     }
 
@@ -157,7 +164,8 @@ public class GamePlayManager : MonoBehaviour
         if (timeoutCoroutine != null) StopCoroutine(timeoutCoroutine);
         retryCount = 0;
 
-        if (loadingText != null) loadingText.gameObject.SetActive(false);
+        if (loadingScreen != null) loadingScreen.SetActive(false);
+        if (hud != null) hud.SetActive(true);
         LoadQuestions(fetchedQuestions);
     }
 
@@ -175,16 +183,28 @@ public class GamePlayManager : MonoBehaviour
         else
         {
             retryCount = 0;
-            if (loadingText != null) loadingText.gameObject.SetActive(false);
-            if (errorText != null)
-            {
-                errorText.gameObject.SetActive(true);
-                errorText.text = "Please restart the game and check your internet.";
-            }
+            if (loadingScreen != null) loadingScreen.SetActive(false);
+            if (failedFetchPopUp != null) failedFetchPopUp.SetActive(true);
             Debug.Log("Fetch failed after 3 attempts.");
         }
     }
 
+    public void DisplayQuestion()
+    {
+        Question question = GetCurrentQuestion();
+        if (question == null) return;
+
+        questionText.text = question.QuestionText;
+        string[] answers = GetShuffledAnswers();
+
+        for (int i = 0; i < answerButtons.Length; i++)
+        {
+            string answer = answers[i];
+            answerButtons[i].GetComponentInChildren<TMP_Text>().text = answer;
+            answerButtons[i].onClick.RemoveAllListeners();
+            answerButtons[i].onClick.AddListener(() => SubmitAnswer(answer));
+        }
+    }
 
 
     void Update()
@@ -204,4 +224,20 @@ public class GamePlayManager : MonoBehaviour
             SubmitAnswer(""); // empty = wrong answer
         }
     }
+
+    public void QuitGame()
+    {
+        Application.Quit();
+    }
+
+    public void PauseGame()
+    {
+        Time.timeScale = 0f; isTimerRunning = false;
+    }
+
+    public void ResumeGame()
+    {
+        Time.timeScale = 1f; isTimerRunning = true;
+    }
+
 }
