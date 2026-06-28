@@ -40,6 +40,10 @@ public class GamePlayManager : MonoBehaviour
     public string CurrentDifficulty => selectedDifficulty;
     
     public int CurrentRoundQuestionCount => questionsPerLevel;
+    
+    [SerializeField][Tooltip("Correct answers needed to trigger Round Finished screen")]
+    public int questionsPerRound = 5;
+    
     public bool isPlayerWon = false;
     
     private bool isFetching = false;
@@ -174,11 +178,14 @@ public class GamePlayManager : MonoBehaviour
         onScoreUpdated?.Invoke(score);
         currentIndex++;
 
-        if (currentIndex >= questions.Count)
+        bool roundComplete = (currentIndex % questionsPerRound == 0);
+        bool allDone = (currentIndex >= questions.Count);
+
+        if (roundComplete || allDone)
         {
             isGameOver = true;
             isTimerRunning = false;
-            isPlayerWon = true;
+            isPlayerWon = allDone;
             StartCoroutine(ShowCorrectPopUpThenRoundFinished());
             return true;
         }
@@ -381,11 +388,22 @@ public class GamePlayManager : MonoBehaviour
     public void NextQuestions()
     {
         if (roundFinishedScreen != null) roundFinishedScreen.SetActive(false);
-        if (hud != null) hud.SetActive(true);
-        currentIndex = 0;
         isGameOver = false;
         isPlayerWon = false;
-        RequestQuestions();
+
+        if (currentIndex >= questions.Count)
+        {
+            // All questions used, fetch new batch
+            currentIndex = 0;
+            if (hud != null) hud.SetActive(true);
+            RequestQuestions();
+        }
+        else
+        {
+            // Questions remaining, continue
+            if (hud != null) hud.SetActive(true);
+            ShowNextQuestion();
+        }
     }
     
 }
