@@ -29,7 +29,6 @@ public class GamePlayManager : MonoBehaviour
     private int retryCount = 0;
     private const int maxRetries = 3;
     private Coroutine timeoutCoroutine;
-
     
     // Game state 
     public List<Question> questions = new List<Question>();
@@ -42,31 +41,99 @@ public class GamePlayManager : MonoBehaviour
     
     public int CurrentRoundQuestionCount => questionsPerLevel;
     public bool isPlayerWon = false;
+    
+    private bool isFetching = false;
    
-    [SerializeField] private TriviaDataManager triviaDataManager;
+    [SerializeField] 
+    private TriviaDataManager triviaDataManager;
 
-    [SerializeField] private GameObject hud;
+    [SerializeField] 
+    private GameObject hud;
     
-    [SerializeField] private GameObject failedFetchPopUp;
+    [SerializeField] 
+    private GameObject failedFetchPopUp;
     
-    [SerializeField] private GameObject loadingScreen;
+    [SerializeField] 
+    private GameObject loadingScreen;
     
-    [SerializeField] private TMP_Text questionText;
+    [SerializeField]
+    private TMP_Text questionText;
     
-    [SerializeField] private UnityEngine.UI.Button[] answerButtons;
+    [SerializeField]
+    private UnityEngine.UI.Button[] answerButtons;
     
     public System.Action onAnswerCorrect;
     public System.Action onAnswerWrong;
     public System.Action<int> onScoreUpdated;
     
+    [SerializeField] 
+    public int easyScore = 1;
+    
+    [SerializeField]
+    public int mediumScore = 2;
+    
+    [SerializeField]
+    public int hardScore = 3;
+    
+    [SerializeField] 
+    private GameObject gameOverScreen;
+    
+    [SerializeField] 
+    private GameObject correctPopUp;
+    
+    [SerializeField] 
+    private GameObject roundFinishedScreen;
+    
+    [SerializeField] 
+    private TMP_Text correctPopUpScoreText;
+    
+    
+    [SerializeField]
+    private TMP_Text gameOverScoreText;  
+    
+    [SerializeField]
+    private TMP_Text roundFinishedScoreText;
+    
+    [SerializeField]
+    private TMP_Text bestScoreText;
+    
+    [SerializeField] 
+    public float correctPopUpDuration = 5f;
+    
+    [SerializeField] 
+    private GameObject mainMenuPanel;
+    
+    [SerializeField]
+    private GameObject chooseDifficultyPanel;
+
+    // Shows the next question and restarts the timer
+    private void ShowNextQuestion()
+    {
+        DisplayQuestion();
+        timeRemaining = questionTimeLimit;
+        isTimerRunning = true;
+    }
+    
+    private IEnumerator ShowCorrectAndAdvance()
+    {
+        isTimerRunning = false;
+        if (correctPopUpScoreText != null) correctPopUpScoreText.text = score.ToString();
+        if (correctPopUp != null) correctPopUp.SetActive(true);
+
+        yield return new WaitForSeconds(correctPopUpDuration);
+
+        if (correctPopUp != null) correctPopUp.SetActive(false);
+        ShowNextQuestion();
+    }
+    
+    
     // TriviaManager call this with the questions for the current round
     public void LoadQuestions(List<Question> fetchedQuestions)
     {
         questions = fetchedQuestions;
-        timeRemaining = questionTimeLimit;
-        isTimerRunning = true;
         currentIndex = 0;
         isGameOver = false;
+        ShowNextQuestion(); // sets timer + displays question
     }
 
     public Question GetCurrentQuestion()
@@ -87,29 +154,52 @@ public class GamePlayManager : MonoBehaviour
             isGameOver = true;
             isTimerRunning = false;
             isPlayerWon = false;
+            onAnswerWrong?.Invoke();
+            UIMessagingManager.instance.AnswerWrong();
+            if (hud != null) hud.SetActive(false);
+            if (gameOverScreen != null) gameOverScreen.SetActive(true);
+            if (gameOverScoreText != null) gameOverScoreText.text = $"Your final score:\n{score}";
+            UpdateBestScore();
             return false;
         }
 
-        score++;
+        score += selectedDifficulty switch
+        {
+            "medium" => mediumScore,
+            "hard" => hardScore,
+            _ => easyScore
+        };
         onAnswerCorrect?.Invoke();
+        UIMessagingManager.instance.AnswerCorrect();
         onScoreUpdated?.Invoke(score);
         currentIndex++;
 
         if (currentIndex >= questions.Count)
         {
             isGameOver = true;
-            onAnswerWrong?.Invoke();
             isTimerRunning = false;
             isPlayerWon = true;
+            StartCoroutine(ShowCorrectPopUpThenRoundFinished());
             return true;
         }
 
-        DisplayQuestion(); 
-        timeRemaining = questionTimeLimit;
-        isTimerRunning = true;
+        StartCoroutine(ShowCorrectAndAdvance());
         return true;
+        
     }
+    
+    private IEnumerator ShowCorrectPopUpThenRoundFinished()
+    {
+        if (correctPopUpScoreText != null) correctPopUpScoreText.text = score.ToString();
+        if (correctPopUp != null) correctPopUp.SetActive(true);
 
+        yield return new WaitForSeconds(correctPopUpDuration);
+
+        if (correctPopUp != null) correctPopUp.SetActive(false);
+        if (roundFinishedScoreText != null) roundFinishedScoreText.text = $"Your score:\n{score}";
+        UpdateBestScore();
+        if (roundFinishedScreen != null) roundFinishedScreen.SetActive(true);
+    }
 
     public string[] GetShuffledAnswers()
     {
@@ -130,6 +220,30 @@ public class GamePlayManager : MonoBehaviour
     {
         selectedDifficulty = PlayerPrefs.GetString("Difficulty",  "easy");
         score = 0;
+        int best = PlayerPrefs.GetInt("BestScore", 0);
+        if (bestScoreText != null) bestScoreText.text = $"Best Score:\n{best}";
+    }
+    
+    private void UpdateBestScore()
+    {
+        int best = PlayerPrefs.GetInt("BestScore", 0);
+        if (score > best)
+        {
+            PlayerPrefs.SetInt("BestScore", score);
+            best = score;
+        }
+        if (bestScoreText != null) bestScoreText.text = $"Best Score:\n{best}";
+    }
+    
+    public void StartGame()
+    {
+        StopAllCoroutines();
+        isFetching = false;
+        retryCount = 0; 
+        score = 0;
+        currentIndex = 0;
+        isGameOver = false;
+        isPlayerWon = false;
         RequestQuestions();
     }
 
@@ -138,12 +252,17 @@ public class GamePlayManager : MonoBehaviour
         if (loadingScreen != null) loadingScreen.SetActive(true);
         if (failedFetchPopUp != null) failedFetchPopUp.SetActive(false);
         StartCoroutine(FetchAndLoad());
+        UIMessagingManager.instance.LoadingStarted();
     }
 
     private IEnumerator FetchAndLoad()
     {
+        isFetching = true;
         timeoutCoroutine = StartCoroutine(FetchTimeout());
         yield return StartCoroutine(triviaDataManager.GetTriviaQuestions(questionsPerLevel, selectedDifficulty));
+
+        if (!isFetching) yield break;  // timeout already handled it, stop here
+        isFetching = false;
 
         if (triviaDataManager.Questions != null && triviaDataManager.Questions.Count > 0)
             OnFetchSuccess(triviaDataManager.Questions);
@@ -155,6 +274,7 @@ public class GamePlayManager : MonoBehaviour
     private IEnumerator FetchTimeout()
     {
         yield return new WaitForSeconds(15f);
+        isFetching = false;
         OnFetchFailed();  // auto-called if no response in 15 sec
     }
     
@@ -167,9 +287,10 @@ public class GamePlayManager : MonoBehaviour
         if (loadingScreen != null) loadingScreen.SetActive(false);
         if (hud != null) hud.SetActive(true);
         LoadQuestions(fetchedQuestions);
+        UIMessagingManager.instance.LoadingCompleted();
     }
 
-// TriviaManager calls this when fetch fails
+    // TriviaManager calls this when fetch fails
     public void OnFetchFailed()
     {
         if (timeoutCoroutine != null) StopCoroutine(timeoutCoroutine);
@@ -215,7 +336,12 @@ public class GamePlayManager : MonoBehaviour
         timeRemaining -= Time.deltaTime;
 
         if (timerText != null)
-            timerText.text = Mathf.CeilToInt(timeRemaining).ToString();
+        {
+            int totalSeconds = Mathf.CeilToInt(timeRemaining);
+            int minutes = totalSeconds / 60;
+            int seconds = totalSeconds % 60;
+            timerText.text = $"{minutes:00}:{seconds:00}";
+        }
         
         if (timeRemaining <= 0.0f)
         {
@@ -224,7 +350,12 @@ public class GamePlayManager : MonoBehaviour
             SubmitAnswer(""); // empty = wrong answer
         }
     }
-
+    public void ShowDifficultySelection()
+    {
+        if (mainMenuPanel != null) mainMenuPanel.SetActive(false);
+        if (chooseDifficultyPanel != null) chooseDifficultyPanel.SetActive(true);
+    }
+    
     public void QuitGame()
     {
         Application.Quit();
@@ -239,5 +370,22 @@ public class GamePlayManager : MonoBehaviour
     {
         Time.timeScale = 1f; isTimerRunning = true;
     }
-
+    
+    public void SetDifficultyFromDropdown(int index)
+    {
+        string[] difficulties = { "easy", "medium", "hard" };
+        if (index >= 0 && index < difficulties.Length)
+            SetDifficulty(difficulties[index]);
+    }
+    
+    public void NextQuestions()
+    {
+        if (roundFinishedScreen != null) roundFinishedScreen.SetActive(false);
+        if (hud != null) hud.SetActive(true);
+        currentIndex = 0;
+        isGameOver = false;
+        isPlayerWon = false;
+        RequestQuestions();
+    }
+    
 }
