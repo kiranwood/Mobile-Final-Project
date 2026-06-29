@@ -109,6 +109,49 @@ public class GamePlayManager : MonoBehaviour
     
     [SerializeField]
     private GameObject chooseDifficultyPanel;
+    
+    private class SavedRoundState
+    {
+        public List<Question> questions;
+        public int currentIndex;
+        public int score;
+    }
+    
+    private const string SaveKey = "SavedRoundState";
+
+    private void SaveProgress()
+    {
+        SavedRoundState state = new SavedRoundState
+        {
+            questions = questions,
+            currentIndex = currentIndex,
+            score = score
+        };
+        string json = JsonUtility.ToJson(state);
+        PlayerPrefs.SetString(SaveKey, json);
+        PlayerPrefs.Save();
+    }
+
+    private bool TryToLoadProgress()
+    {
+        if (!PlayerPrefs.HasKey(SaveKey)) return false;
+
+        string json = PlayerPrefs.GetString(SaveKey);
+        SavedRoundState state = JsonUtility.FromJson<SavedRoundState>(json);
+        
+        if(state == null || state.questions == null || state.questions.Count == 0) return false;
+        
+        questions = state.questions;
+        currentIndex = state.currentIndex;
+        score = state.score;
+        return true;
+    }
+    
+    private void ClearProgress()
+    {
+        PlayerPrefs.DeleteKey(SaveKey);
+        PlayerPrefs.Save();
+    }
 
     // Shows the next question and restarts the timer
     private void ShowNextQuestion()
@@ -175,7 +218,10 @@ public class GamePlayManager : MonoBehaviour
         };
         onAnswerCorrect?.Invoke();
         UIMessagingManager.instance.AnswerCorrect();
+        
         onScoreUpdated?.Invoke(score);
+        PlayerPrefs.SetInt("Score", score);
+        PlayerPrefs.Save();
         currentIndex++;
 
         bool roundComplete = (currentIndex % questionsPerRound == 0);
@@ -189,7 +235,7 @@ public class GamePlayManager : MonoBehaviour
             StartCoroutine(ShowCorrectPopUpThenRoundFinished());
             return true;
         }
-
+        SaveProgress();
         StartCoroutine(ShowCorrectAndAdvance());
         return true;
         
@@ -220,15 +266,29 @@ public class GamePlayManager : MonoBehaviour
     {
         selectedDifficulty = difficulty;
         PlayerPrefs.SetString("Difficulty", difficulty);
+        PlayerPrefs.Save();
     }
 
     
     void Start()
     {
         selectedDifficulty = PlayerPrefs.GetString("Difficulty",  "easy");
-        score = 0;
         int best = PlayerPrefs.GetInt("BestScore", 0);
         if (bestScoreText != null) bestScoreText.text = $"Best Score:\n{best}";
+
+        if (TryToLoadProgress())
+        {
+            isGameOver = false;
+            isPlayerWon = false;
+            if(mainMenuPanel != null) mainMenuPanel.SetActive(false);
+            if(chooseDifficultyPanel != null) chooseDifficultyPanel.SetActive(false);
+            if(hud!=null) hud.SetActive(true);
+            ShowNextQuestion();
+        }
+        else
+        {
+            score = 0;
+        }
     }
     
     private void UpdateBestScore()
@@ -237,6 +297,7 @@ public class GamePlayManager : MonoBehaviour
         if (score > best)
         {
             PlayerPrefs.SetInt("BestScore", score);
+            PlayerPrefs.Save();
             best = score;
         }
         if (bestScoreText != null) bestScoreText.text = $"Best Score:\n{best}";
@@ -251,6 +312,7 @@ public class GamePlayManager : MonoBehaviour
         currentIndex = 0;
         isGameOver = false;
         isPlayerWon = false;
+        ClearProgress();
         RequestQuestions();
     }
 
@@ -365,6 +427,7 @@ public class GamePlayManager : MonoBehaviour
     
     public void QuitGame()
     {
+        PlayerPrefs.Save();
         Application.Quit();
     }
 
