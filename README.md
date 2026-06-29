@@ -46,6 +46,7 @@ Julian D Silva - UI Developer
 https://github.com/kiranwood/Mobile-Final-Project
 
 
-
+##### Link of the Trelo:
+https://trello.com/invite/b/6a40187a5e6cfca4d84e661f/ATTIf9d555ea6b4206d10be5e4cc606f39bbA2EA65A1/mobilefinal
 
 
