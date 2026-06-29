@@ -110,6 +110,7 @@ public class GamePlayManager : MonoBehaviour
     [SerializeField]
     private GameObject chooseDifficultyPanel;
     
+    [System.Serializable]
     private class SavedRoundState
     {
         public List<Question> questions;
@@ -118,7 +119,7 @@ public class GamePlayManager : MonoBehaviour
     }
     
     private const string SaveKey = "SavedRoundState";
-
+    
     private void SaveProgress()
     {
         SavedRoundState state = new SavedRoundState
@@ -131,7 +132,6 @@ public class GamePlayManager : MonoBehaviour
         PlayerPrefs.SetString(SaveKey, json);
         PlayerPrefs.Save();
     }
-
     private bool TryToLoadProgress()
     {
         if (!PlayerPrefs.HasKey(SaveKey)) return false;
@@ -146,13 +146,11 @@ public class GamePlayManager : MonoBehaviour
         score = state.score;
         return true;
     }
-    
     private void ClearProgress()
     {
         PlayerPrefs.DeleteKey(SaveKey);
         PlayerPrefs.Save();
     }
-
     // Shows the next question and restarts the timer
     private void ShowNextQuestion()
     {
@@ -160,7 +158,6 @@ public class GamePlayManager : MonoBehaviour
         timeRemaining = questionTimeLimit;
         isTimerRunning = true;
     }
-    
     private IEnumerator ShowCorrectAndAdvance()
     {
         isTimerRunning = false;
@@ -172,8 +169,6 @@ public class GamePlayManager : MonoBehaviour
         if (correctPopUp != null) correctPopUp.SetActive(false);
         ShowNextQuestion();
     }
-    
-    
     // TriviaManager call this with the questions for the current round
     public void LoadQuestions(List<Question> fetchedQuestions)
     {
@@ -182,7 +177,6 @@ public class GamePlayManager : MonoBehaviour
         isGameOver = false;
         ShowNextQuestion(); // sets timer + displays question
     }
-
     public Question GetCurrentQuestion()
     {
         if(isGameOver || questions.Count == 0) return null;
@@ -201,6 +195,7 @@ public class GamePlayManager : MonoBehaviour
             isGameOver = true;
             isTimerRunning = false;
             isPlayerWon = false;
+            ClearProgress();
             onAnswerWrong?.Invoke();
             UIMessagingManager.instance.AnswerWrong();
             if (hud != null) hud.SetActive(false);
@@ -232,6 +227,7 @@ public class GamePlayManager : MonoBehaviour
             isGameOver = true;
             isTimerRunning = false;
             isPlayerWon = allDone;
+            ClearProgress();
             StartCoroutine(ShowCorrectPopUpThenRoundFinished());
             return true;
         }
@@ -447,7 +443,6 @@ public class GamePlayManager : MonoBehaviour
         if (index >= 0 && index < difficulties.Length)
             SetDifficulty(difficulties[index]);
     }
-    
     public void NextQuestions()
     {
         if (roundFinishedScreen != null) roundFinishedScreen.SetActive(false);
@@ -468,5 +463,4 @@ public class GamePlayManager : MonoBehaviour
             ShowNextQuestion();
         }
     }
-    
 }
